@@ -1,0 +1,61 @@
+group: CasaPrado
+
+Cliente = {
+    CPF_cliente:string, nome:string, data_nascimento:date, estado_civil:string, e_mail:string
+    "11111111111", "João Silva", 1985-03-10, "Solteiro", "joao@gmail.com"
+    "22222222222", "Maria Oliveira", 1990-07-15, "Casado", "maria@gmail.com"
+    "33333333333", "Carlos Pereira", 1978-11-22, "Divorciado", "carlos@gmail.com"
+    "44444444444", "Ana Souza", 1995-02-05, "Solteiro", "ana@gmail.com"
+}
+
+Telefone = {
+    numero:string, CPF_cliente:string
+    "11999999999", "11111111111"
+    "11988888888", "22222222222"
+    "11977777777", "33333333333"
+    "11966666666", "44444444444"
+}
+
+Endereco = {
+    cod_endereco:number, complemento:string, bairro:string, cidade:string, numero:string, cep:string
+    1, "Apt 101", "Centro", "Vitória da Conquista", "123", "45000-000"
+    2, "Casa 23", "Bela Vista", "Vitória da Conquista", "456", "45001-000"
+}
+
+ClienteEndereco = {
+    CPF_cliente:string, cod_endereco:number, tipo:string
+    "11111111111", 1, "Residencial"
+    "22222222222", 2, "Comercial"
+    "33333333333", 1, "Residencial"
+    "44444444444", 2, "Comercial"
+}
+
+Pedido = {
+    cod_pedido:number, descricao:string, data_prev_entrega:date, data_entrega:date, status:string, valor_total:number, forma_pagamento:string, tipo_imovel:string, cod_endereco:number, CPF_cliente:string
+    101, "Pedido 1", 2023-11-05, 2023-11-10, "Entregue", 500.00, "Dinheiro", "Residencial", 1, "11111111111"
+    102, "Pedido 2", 2023-11-12, 2023-11-14, "Finalizado", 700.00, "Cartão de crédito", "Comercial", 2, "22222222222"
+}
+
+Parcela = {
+    cod_pagamento:number, data_vencimento:date, data_pagamento:date, valor_pago:number, cod_pedido:number
+    1, 2023-11-10, 2023-11-10, 500.00, 101
+    2, 2023-11-20, 2023-11-20, 700.00, 102
+}
+
+Projetista = {
+    CPF_projetista:string, nome:string, data_admissao:date, telefone:string
+    "55555555555", "Lucas Oliveira", 2020-05-15, "11911111111"
+    "66666666666", "Mariana Souza", 2021-06-10, "11922222222"
+}
+
+Ambiente = {
+    cod_ambiente:number, nome_ambiente:string, area:number, CPF_projetista:string, cod_pedido:number
+    1, "Sala de estar", 25, "55555555555", 101
+    2, "Escritório", 30, "66666666666", 102
+}
+
+Versao = {
+    cod_versao:number, arquivo_planta:string, cod_ambiente:number
+    1, "planta_sala_estar.pdf", 1
+    2, "planta_escritorio.pdf", 2
+}

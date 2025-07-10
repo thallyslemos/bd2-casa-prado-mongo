@@ -1,0 +1,81 @@
+classDiagram
+    direction LR
+
+    class clientes {
+        <<Collection>>
+        +string _id (PK)
+        +string nome
+        +date data_nascimento
+        +string estado_civil
+        +string e_mail
+    }
+
+    class telefone_obj {
+        <<Embedded Object>>
+        +string numero
+    }
+
+    class endereco_obj {
+        <<Embedded Object>>
+        +string tipo
+        +string logradouro
+        +string numero
+        +string complemento
+        +string bairro
+        +string cidade
+        +string cep
+    }
+
+    class projetistas {
+        <<Collection>>
+        +string _id (PK)
+        +string nome
+        +date data_admissao
+        +string telefone
+    }
+
+    class pedidos {
+        <<Collection>>
+        +int _id (PK)
+        +string descricao
+        +date data_prev_entrega
+        +date data_entrega
+        +string status
+        +double valor_total
+        +string forma_pagamento
+        +string tipo_imovel
+        +string cliente_id (FK)
+        +object endereco_entrega
+    }
+
+    class parcela_obj {
+        <<Embedded Object>>
+        +int cod_pagamento
+        +date data_vencimento
+        +date data_pagamento
+        +double valor_pago
+    }
+
+    class ambiente_obj {
+        <<Embedded Object>>
+        +int cod_ambiente
+        +string nome_ambiente
+        +double area
+        +string projetista_id (FK)
+    }
+
+    class versao_obj {
+        <<Embedded Object>>
+        +int cod_versao
+        +string arquivo_planta
+    }
+
+    clientes "1" *-- "0..n" telefone_obj : telefones [array]
+    clientes "1" *-- "0..n" endereco_obj : enderecos [array]
+
+    pedidos "1" *-- "0..n" parcela_obj : parcelas [array]
+    pedidos "1" *-- "0..n" ambiente_obj : ambientes [array]
+    pedidos ..> clientes : "refere-se a"
+
+    ambiente_obj "1" *-- "0..n" versao_obj : versoes [array]
+    ambiente_obj ..> projetistas : "refere-se a"

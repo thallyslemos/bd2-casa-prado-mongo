@@ -1,0 +1,35 @@
+erDiagram
+    clientes {
+        string _id PK "CPF do cliente"
+        string nome
+        date data_nascimento
+        string estado_civil
+        string e_mail
+        object telefones "Array de objetos"
+        object enderecos "Array de objetos"
+    }
+
+    projetistas {
+        string _id PK "CPF do projetista"
+        string nome
+        date data_admissao
+        string telefone
+    }
+
+    pedidos {
+        int _id PK "Código do pedido"
+        string descricao
+        date data_prev_entrega
+        date data_entrega
+        string status
+        double valor_total
+        string forma_pagamento
+        string tipo_imovel
+        string cliente_id FK "Ref. ao cliente"
+        object endereco_entrega "Cópia desnormalizada"
+        object parcelas "Array de objetos aninhados"
+        object ambientes "Array de objetos aninhados"
+    }
+
+    pedidos ||--o{ clientes : "realiza"
+    pedidos }o--o| projetistas : "é_responsável_por"
