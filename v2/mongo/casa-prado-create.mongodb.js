@@ -117,18 +117,17 @@ db.pedidos.insertMany([
         "cep": "01001000"
     },
     "parcelas": [
-      { "cod_pagamento": 1, "data_vencimento": new Date("2024-07-25"), "data_pagamento": new Date("2024-07-27"), "valor_pago": 2500.00 },
-      { "cod_pagamento": 2, "data_vencimento": new Date("2024-08-25"), "data_pagamento": new Date("2024-08-27"), "valor_pago": 2500.00 },
-      { "cod_pagamento": 3, "data_vencimento": new Date("2024-09-25"), "data_pagamento": null, "valor_pago": 2500.00 }
+      { "data_vencimento": new Date("2024-07-25"), "data_pagamento": new Date("2024-07-27"), "valor_pago": 2500.00 },
+      { "data_vencimento": new Date("2024-08-25"), "data_pagamento": new Date("2024-08-27"), "valor_pago": 2500.00 },
+      { "data_vencimento": new Date("2024-09-25"), "data_pagamento": null, "valor_pago": 2500.00 }
     ],
     "ambientes": [
       {
-        "cod_ambiente": 1,
         "nome_ambiente": "Sala de estar",
         "area": 30.50,
         "projetista_id": "55544433322",
         "versoes": [
-          { "cod_versao": 1, "arquivo_planta": "planta_sala.pdf" }
+          {  "arquivo_planta": "planta_sala.pdf" }
         ]
       }
     ]
@@ -152,16 +151,15 @@ db.pedidos.insertMany([
         "cep": "01001000"
     },
     "parcelas": [
-        { "cod_pagamento": 4, "data_vencimento": new Date("2024-08-25"), "data_pagamento": null, "valor_pago": 6000.00 }
+        { "data_vencimento": new Date("2024-08-25"), "data_pagamento": null, "valor_pago": 6000.00 }
     ],
     "ambientes": [
        {
-        "cod_ambiente": 2,
         "nome_ambiente": "Escritório Principal",
         "area": 50.00,
         "projetista_id": "66677788899",
         "versoes": [
-          { "cod_versao": 2, "arquivo_planta": "planta_escritorio.pdf" }
+          {  "arquivo_planta": "planta_escritorio.pdf" }
         ]
       }
     ]
