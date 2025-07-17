@@ -1,346 +1,289 @@
 // Conexão com o banco de dados "casa_prado"
 use("casa_prado");
 
+// Definição da data atual para as consultas que precisam dela.
+const hoje = new Date();
+
 // =================================================================================
-// CONSULTAS ANÁLOGAS COM LÓGICA DE SUBCONSULTA E COMENTÁRIOS DETALHADOS
+// 5 NOVAS CONSULTAS GERENCIAIS PARA MONGODB
 // =================================================================================
 
-// --- 1. Clientes que se cadastraram mas nunca realizaram um pedido ---
-print("\n--- Consulta 1: Clientes sem pedidos ---");
-var clientes_sem_pedidos = db.clientes.aggregate([
-  // O pipeline de agregação ($aggregate) processa os dados em etapas (stages).
+// --- 1. Projetista com o Maior Ticket Médio por Projeto (sem usar LIMIT) ---
+print("\n--- Consulta 1: Projetista com Maior Ticket Médio ---");
+var projetista_maior_ticket = db.pedidos.aggregate([
+  // Etapa 1: Desagrupa os ambientes para poder acessar o projetista de cada projeto.
+  { $unwind: "$ambientes" },
+  
+  // Etapa 2: Agrupa por projetista para calcular o ticket médio de cada um.
+  {
+    $group: {
+      _id: "$ambientes.projetista_id",
+      ticket_medio: { $avg: "$valor_total" }
+    }
+  },
+  
+  // Etapa 3: Usa $facet para processar os dados de duas formas: 
+  // 1) manter a lista de todos os projetistas com seus tickets médios.
+  // 2) encontrar o valor máximo do ticket médio entre todos eles.
+  {
+    $facet: {
+      "projetistasComTicket": [{ $match: {} }],
+      "maxTicket": [
+        { $group: { _id: null, max_valor: { $max: "$ticket_medio" } } },
+        { $unwind: "$max_valor" }
+      ]
+    }
+  },
+  
+  // Etapa 4: Desagrupa os resultados para poder compará-los.
+  { $unwind: "$projetistasComTicket" },
+  { $unwind: "$maxTicket" },
+  
+  // Etapa 5: Usa $redact para manter apenas o documento cujo ticket médio é igual ao máximo encontrado.
+  {
+    $redact: {
+      $cond: {
+        if: { $eq: ["$projetistasComTicket.ticket_medio", "$maxTicket.max_valor"] },
+        then: "$$KEEP", // Mantém o documento
+        else: "$$PRUNE" // Descarta o documento
+      }
+    }
+  },
 
-  // Etapa 1: $lookup
-  // Funciona de forma similar a um LEFT JOIN do SQL.
-  // Ele "busca" na coleção 'pedidos' os documentos que correspondem à condição.
+  // Etapa 6: Faz o lookup para buscar o nome do projetista.
   {
     $lookup: {
-      from: "pedidos",           // Coleção estrangeira para buscar dados.
-      localField: "_id",         // Campo da coleção local ('clientes').
-      foreignField: "cliente_id",// Campo da coleção estrangeira ('pedidos').
-      as: "pedidos_do_cliente" // Nome do novo array que será adicionado aos documentos da coleção 'clientes'.
+      from: "projetistas",
+      localField: "projetistasComTicket._id",
+      foreignField: "_id",
+      as: "info_projetista"
     }
   },
 
-  // Etapa 2: $match
-  // Filtra os documentos, similar ao WHERE do SQL.
-  // Aqui, estamos mantendo apenas os documentos onde o array 'pedidos_do_cliente' tem tamanho 0.
-  {
-    $match: {
-      pedidos_do_cliente: { $size: 0 } // $size é o operador que retorna o número de elementos em um array.
-    }
-  },
-
-  // Etapa 3: $project
-  // Remodela os documentos de saída. Similar a selecionar colunas específicas no SQL (SELECT).
-  // 1 significa que o campo deve ser incluído, 0 significa que deve ser excluído.
+  // Etapa 7: Formata a saída final.
   {
     $project: {
-      _id: 1, // Inclui o campo _id (CPF do cliente).
-      nome: 1,  // Inclui o campo nome.
-      e_mail: 1 // Inclui o campo e_mail.
+      _id: 0,
+      nome_projetista: { $arrayElemAt: ["$info_projetista.nome", 0] },
+      ticket_medio: { $round: ["$projetistasComTicket.ticket_medio", 2] }
     }
   }
 ]);
-print(clientes_sem_pedidos);
+print(projetista_maior_ticket);
 
 
-// --- 2. Pedidos com valor total acima da média de todos os pedidos ---
-print("\n--- Consulta 2: Pedidos com valor acima da média ---");
-var pedidos_acima_media = db.pedidos.aggregate([
-  // Esta consulta demonstra uma "subconsulta" mais complexa.
-
-  // Etapa 1: $group
-  // Agrupa documentos. Usado para calcular valores agregados como soma, média, etc.
-  // Aqui, agrupamos TODOS os documentos da coleção 'pedidos' em um único grupo (_id: null)
-  // para calcular a média de 'valor_total' de toda a coleção.
-  {
-    $group: {
-      _id: null, // Agrupa todos os documentos em um só.
-      media_valor_total: { $avg: "$valor_total" } // Calcula a média ($avg) do campo 'valor_total'.
-    }
-  },
-
-  // Etapa 2: $lookup com Pipeline
-  // Um $lookup avançado que permite executar um pipeline de agregação na coleção estrangeira.
-  {
-    $lookup: {
-      from: "pedidos",
-      let: { media: "$media_valor_total" }, // 'let' define uma variável 'media' com o valor da média que calculamos na etapa anterior.
-      pipeline: [ // O pipeline que será executado na coleção 'pedidos'.
-        {
-          $match: {
-            // $expr permite usar expressões de agregação dentro do $match.
-            // Aqui, comparamos se o 'valor_total' de cada pedido é maior ($gt) que a variável 'media' que definimos.
-            // A variável é acessada com '$$'.
-            $expr: { $gt: ["$valor_total", "$$media"] }
-          }
-        },
-        {
-           $project: { _id: 1, descricao: 1, valor_total: 1, cliente_id: 1 } // Seleciona os campos dos pedidos que atendem à condição.
-        }
-      ],
-      as: "pedidos_acima_media" // O resultado do pipeline será armazenado neste array.
-    }
-  },
-
-  // Etapa 3: $unwind
-  // Desconstrói um campo de array de um documento de entrada para emitir um documento para cada elemento.
-  // Se 'pedidos_acima_media' tem 2 documentos, a saída desta etapa terá 2 documentos principais.
-  {
-    $unwind: "$pedidos_acima_media"
-  },
-
-  // Etapa 4: $replaceRoot
-  // Promove um documento aninhado para o nível superior.
-  // Estamos substituindo o documento inteiro pelo conteúdo de 'pedidos_acima_media' para limpar a saída.
-  {
-    $replaceRoot: { newRoot: "$pedidos_acima_media" }
-  }
-]);
-print(pedidos_acima_media);
-
-
-// --- 3. Projetistas que trabalharam em mais de 2 projetos distintos ---
-print("\n--- Consulta 3: Projetistas com mais de 2 projetos ---");
-var projetistas_com_mais_de_2_projetos = db.pedidos.aggregate([
-  // Etapa 1: $unwind
-  // Desconstrói o array 'ambientes' para que possamos acessar o 'projetista_id' de cada ambiente individualmente.
-  { $unwind: "$ambientes" },
-
-  // Etapa 2: $group
-  // Agrupa os documentos pelo 'projetista_id'.
-  {
-    $group: {
-      _id: "$ambientes.projetista_id", // O campo que define o grupo.
-      // $addToSet adiciona um valor a um array apenas se ele ainda não estiver lá, garantindo valores únicos.
-      // Estamos criando um array de códigos de pedido únicos para cada projetista.
-      pedidos_distintos: { $addToSet: "$_id" }
-    }
-  },
-
-  // Etapa 3: $project
-  // Cria um novo campo 'total_projetos' que é o tamanho ($size) do array 'pedidos_distintos'.
-  {
-    $project: {
-        _id: 1, // Mantém o CPF do projetista.
-        total_projetos: { $size: "$pedidos_distintos" }
-    }
-  },
-
-  // Etapa 4: $match
-  // Filtra para manter apenas os projetistas cujo 'total_projetos' é maior que ($gt) 2.
-  {
-      $match: {
-          total_projetos: { $gt: 2 }
-      }
-  },
-
-  // Etapa 5: $lookup
-  // Busca o nome do projetista na coleção 'projetistas' usando o _id (CPF).
-  {
-    $lookup: {
-        from: "projetistas",
-        localField: "_id",
-        foreignField: "_id",
-        as: "info_projetista"
-    }
-  },
-
-  // Etapa 6: $project
-  // Formata a saída final.
-  {
-      $project: {
-          _id: 0, // Exclui o campo _id.
-          CPF_projetista: "$_id", // Renomeia _id para CPF_projetista.
-          // $arrayElemAt pega um elemento de um array pelo seu índice. Usado para extrair o nome do projetista do array 'info_projetista'.
-          nome_projetista: { $arrayElemAt: ["$info_projetista.nome", 0] },
-          total_projetos: 1
-      }
-  }
-]);
-print(projetistas_com_mais_de_2_projetos);
-
-
-// --- 4. Clientes com pedidos projetados por mais de um projetista ---
-print("\n--- Consulta 4: Clientes com múltiplos projetistas em seus pedidos ---");
-var clientes_com_multipros = db.pedidos.aggregate([
-  // Etapa 1: $unwind
-  // Desconstrói o array 'ambientes'.
-  { $unwind: "$ambientes" },
-
-  // Etapa 2: $group
-  // Agrupa os documentos pelo 'cliente_id'.
-  {
-    $group: {
-      _id: "$cliente_id",
-      // Para cada cliente, cria um array de projetistas únicos ($addToSet).
-      projetistas_distintos: { $addToSet: "$ambientes.projetista_id" }
-    }
-  },
-
-  // Etapa 3: $match
-  // Filtra para manter apenas os clientes cujo array 'projetistas_distintos' tem mais de um elemento.
-  // A verificação `{"projetistas_distintos.1": { $exists: true }}` é uma forma eficiente de checar se o array tem um segundo elemento (índice 1).
+// --- 2. Bairro com Maior Incidência de Atrasos na Entrega ---
+print("\n--- Consulta 2: Bairros com Maior Incidência de Atrasos ---"); // Adicionar registros com data de entrega posterior à prevista
+var bairros_com_atraso = db.pedidos.aggregate([
+  // Etapa 1: Filtra apenas os pedidos que foram entregues com atraso.
   {
     $match: {
-      "projetistas_distintos.1": { $exists: true }
+      data_entrega: { $ne: null }, // Garante que o pedido foi entregue.
+      $expr: { $gt: ["$data_entrega", "$data_prev_entrega"] } // Compara se a data de entrega é maior que a prevista.
     }
   },
+  
+  // Etapa 2: Agrupa pelo bairro do endereço de entrega e conta as ocorrências.
+  {
+    $group: {
+      _id: "$endereco_entrega.bairro",
+      total_de_atrasos: { $sum: 1 }
+    }
+  },
+  
+  // Etapa 3: Formata a saída.
+  {
+    $project: {
+      _id: 0,
+      bairro: "$_id",
+      total_de_atrasos: 1
+    }
+  },
+  
+  // Etapa 4: Ordena para mostrar os bairros com mais atrasos primeiro.
+  { $sort: { total_de_atrasos: -1 } }
+]);
+print(bairros_com_atraso);
 
-  // Etapa 4: $lookup
-  // Busca o nome do cliente na coleção 'clientes'.
+
+// --- 3. Média de Versões de Projeto por Projetista ---
+print("\n--- Consulta 3: Média de Versões por Projetista ---");
+var media_versoes_projetista = db.pedidos.aggregate([
+  // Etapa 1: Desagrupa os ambientes de cada pedido.
+  { $unwind: "$ambientes" },
+  
+  // Etapa 2: Desagrupa as versões de cada ambiente.
+  { $unwind: "$ambientes.versoes" },
+  
+  // Etapa 3: Agrupa pelo projetista para contar o total de versões e o número de projetos distintos.
+  {
+    $group: {
+      _id: "$ambientes.projetista_id",
+      total_versoes: { $sum: 1 },
+      pedidos_distintos: { $addToSet: "$_id" } // addToSet garante que cada ID de pedido seja contado apenas uma vez.
+    }
+  },
+  
+  // Etapa 4: Busca o nome do projetista na coleção 'projetistas'.
   {
     $lookup: {
-        from: "clientes",
-        localField: "_id",
-        foreignField: "_id",
-        as: "info_cliente"
+      from: "projetistas",
+      localField: "_id",
+      foreignField: "_id",
+      as: "info_projetista"
     }
   },
-
-  // Etapa 5: $project
-  // Formata a saída final.
+  
+  // Etapa 5: Formata a saída e calcula a média.
   {
-      $project: {
-          _id: 0,
-          CPF_cliente: "$_id",
-          nome_cliente: { $arrayElemAt: ["$info_cliente.nome", 0] },
-          projetistas: "$projetistas_distintos" // remover para manter retorno igual ao do relacional?
+    $project: {
+      _id: 0,
+      nome_projetista: { $arrayElemAt: ["$info_projetista.nome", 0] },
+      media_versoes_por_projeto: {
+        // Divide o total de versões pelo tamanho do array de pedidos distintos.
+        $divide: ["$total_versoes", { $size: "$pedidos_distintos" }]
       }
+    }
+  },
+  
+  // Etapa 6: Ordena pela maior média de versões.
+  { $sort: { media_versoes_por_projeto: -1 } }
+]);
+print(media_versoes_projetista);
+
+
+// --- 4. Clientes que Possuem Parcelas em Atraso ---
+print("\n--- Consulta 4: Clientes com Parcelas em Atraso ---");
+var clientes_inadimplentes = db.pedidos.aggregate([
+  // Etapa 1: Desagrupa o array de parcelas.
+  { $unwind: "$parcelas" },
+  
+  // Etapa 2: Filtra para encontrar apenas as parcelas vencidas e não pagas.
+  {
+    $match: {
+      "parcelas.data_pagamento": null,
+      "parcelas.data_vencimento": { $lt: hoje }
+    }
+  },
+  
+  // Etapa 3: Agrupa pelo ID do cliente para obter uma lista de clientes únicos.
+  {
+    $group: {
+      _id: "$cliente_id"
+    }
+  },
+  
+  // Etapa 4: Busca os detalhes (nome, e-mail) dos clientes encontrados.
+  {
+    $lookup: {
+      from: "clientes",
+      localField: "_id",
+      foreignField: "_id",
+      as: "info_cliente"
+    }
+  },
+  
+  // Etapa 5: Formata a saída final.
+  {
+    $project: {
+      _id: 0,
+      CPF_cliente: { $arrayElemAt: ["$info_cliente._id", 0] },
+      nome: { $arrayElemAt: ["$info_cliente.nome", 0] },
+      e_mail: { $arrayElemAt: ["$info_cliente.e_mail", 0] }
+    }
   }
 ]);
-print(clientes_com_multipros);
+print(clientes_inadimplentes);
 
 
-// --- 5. Pedidos que estão sendo gerenciados pelo projetista mais antigo ---
-print("\n--- Consulta 5: Pedidos do projetista mais antigo ---");
-var projetista_antigo = db.projetistas.aggregate([
-  // Esta consulta começa na coleção 'projetistas' para encontrar o mais antigo primeiro.
-
-  // Etapa 1: $sort
-  // Ordena os documentos. 1 para ordem ascendente, -1 para descendente.
-  { $sort: { data_admissao: 1 } }, // Ordena pela data de admissão da mais antiga para a mais nova.
-
-  // Etapa 2: $limit
-  // Restringe o número de documentos passados para a próxima etapa.
-  { $limit: 1 }, // Pega apenas o primeiro documento após a ordenação (o mais antigo).
-
-  // Etapa 3: $lookup com Pipeline
-  // Usa o _id do projetista encontrado para buscar seus pedidos.
+// --- 5. Quantidade de Pedidos por Estado Civil do Cliente ---
+print("\n--- Consulta 5: Quantidade de Pedidos por Estado Civil ---");
+var pedidos_por_estado_civil = db.pedidos.aggregate([
+  // Etapa 1: Junta a coleção 'pedidos' com a 'clientes' para acessar o estado civil.
   {
     $lookup: {
-      from: "pedidos",
-      let: { projetista_id: "$_id" }, // Define a variável 'projetista_id'.
-      pipeline: [
-        {
-          $match: {
-            $expr: {
-              // $in verifica se um valor existe dentro de um array.
-              // Aqui, checamos se o '$$projetista_id' está no array 'ambientes.projetista_id' de cada pedido.
-              $in: ["$$projetista_id", "$ambientes.projetista_id"]
-            }
-          }
-        },
-        {
-          $project: { _id: 1, descricao: 1, valor_total: 1, cliente_id: 1 }
-        }
-      ],
-      as: "pedidos_do_projetista"
+      from: "clientes",
+      localField: "cliente_id",
+      foreignField: "_id",
+      as: "info_cliente"
     }
   },
-
-  // Etapa 4: $unwind
-  // Desconstrói o array de pedidos para criar um documento para cada pedido encontrado.
-  { $unwind: "$pedidos_do_projetista"},
-
-  // Etapa 5: $replaceRoot
-  // Promove o documento do pedido para o nível raiz, limpando a saída.
-  { $replaceRoot: { newRoot: "$pedidos_do_projetista" }}
+  
+  // Etapa 2: Desagrupa o resultado do lookup, que é um array.
+  { $unwind: "$info_cliente" },
+  
+  // Etapa 3: Agrupa pelo estado civil e conta o número de pedidos.
+  {
+    $group: {
+      _id: "$info_cliente.estado_civil",
+      quantidade_de_pedidos: { $sum: 1 }
+    }
+  },
+  
+  // Etapa 4: Formata a saída.
+  {
+    $project: {
+      _id: 0,
+      estado_civil: "$_id",
+      quantidade_de_pedidos: 1
+    }
+  },
+  
+  // Etapa 5: Ordena pela maior quantidade de pedidos.
+  { $sort: { quantidade_de_pedidos: -1 } }
 ]);
-print(projetista_antigo);
+print(pedidos_por_estado_civil);
+
+// =================================================================================
+// --- Reultados:
 
 
-/* --- resultado:
+// --- Consulta 1: Projetista com Maior Ticket Médio ---
+// {
+//   cursorHasMore: false,
+//   documents: [ { nome_projetista: 'Ana Karolina', ticket_medio: 17400 } ]
+// }
 
+// --- Consulta 2: Bairros com Maior Incidência de Atrasos ---
+// { cursorHasMore: false, documents: [] }
 
---- Consulta 1: Clientes sem pedidos ---
-{
-  cursorHasMore: false,
-  documents: [
-    {
-      _id: '99988877766',
-      nome: 'Brendon Lima',
-      e_mail: 'brendon.lima@email.com'
-    }
-  ]
-}
+// --- Consulta 3: Média de Versões por Projetista ---
+// {
+//   cursorHasMore: false,
+//   documents: [
+//     { nome_projetista: 'João Mendes', media_versoes_por_projeto: 1 },
+//     { nome_projetista: 'Ana Oliveira', media_versoes_por_projeto: 1 },
+//     { nome_projetista: 'Ana Karolina', media_versoes_por_projeto: 1 }
+//   ]
+// }
 
---- Consulta 2: Pedidos com valor acima da média ---
-{
-  cursorHasMore: false,
-  documents: [
-    {
-      _id: 6,
-      descricao: 'Recepção de clínica',
-      valor_total: 25000,
-      cliente_id: '55566677788'
-    },
-    {
-      _id: 7,
-      descricao: 'Consultório médico',
-      valor_total: 28000,
-      cliente_id: '55566677788'
-    }
-  ]
-}
+// --- Consulta 4: Clientes com Parcelas em Atraso ---
+// {
+//   cursorHasMore: false,
+//   documents: [
+//     {
+//       CPF_cliente: '98765432100',
+//       nome: 'Maria Souza',
+//       e_mail: 'maria@email.com'
+//     },
+//     {
+//       CPF_cliente: '12345678901',
+//       nome: 'Carlos Silva',
+//       e_mail: 'carlos@email.com'
+//     },
+//     {
+//       CPF_cliente: '55566677788',
+//       nome: 'Herbert Duarte',
+//       e_mail: 'herbert.duarte@email.com'
+//     }
+//   ]
+// }
 
---- Consulta 3: Projetistas com mais de 2 projetos ---
-{
-  cursorHasMore: false,
-  documents: [
-    {
-      total_projetos: 3,
-      CPF_projetista: '66677788899',
-      nome_projetista: 'Ana Oliveira'
-    }
-  ]
-}
-
---- Consulta 4: Clientes com múltiplos projetistas em seus pedidos ---
-{
-  cursorHasMore: false,
-  documents: [
-    {
-      CPF_cliente: '11122233344',
-      nome_cliente: 'Gabriel Viana',
-      projetistas: [Array]
-    },
-    {
-      CPF_cliente: '55566677788',
-      nome_cliente: 'Herbert Duarte',
-      projetistas: [Array]
-    }
-  ]
-}
-
---- Consulta 5: Pedidos do projetista mais antigo ---
-{
-  cursorHasMore: false,
-  documents: [
-    {
-      _id: 1,
-      descricao: 'Projeto cozinha planejada',
-      valor_total: 8500,
-      cliente_id: '12345678901'
-    },
-    {
-      _id: 4,
-      descricao: 'Home theater para sala',
-      valor_total: 7500,
-      cliente_id: '11122233344'
-    }
-  ]
-}
-
-*/
+// --- Consulta 5: Quantidade de Pedidos por Estado Civil ---
+// {
+//   cursorHasMore: false,
+//   documents: [
+//     { quantidade_de_pedidos: 4, estado_civil: 'Solteiro' },
+//     { quantidade_de_pedidos: 3, estado_civil: 'Casado' }
+//   ]
+// }

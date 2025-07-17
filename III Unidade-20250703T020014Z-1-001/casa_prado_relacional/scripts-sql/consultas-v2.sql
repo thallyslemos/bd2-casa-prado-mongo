@@ -1,13 +1,130 @@
+/*
+
+1. Projetista com o Maior Ticket Médio (versão com subconsultas aninhadas)
+Valor Gerencial: Esta consulta identifica, de forma inequívoca, o projetista de melhor desempenho em termos de valor médio por projeto. É uma métrica poderosa para programas de bônus, reconhecimento e para entender qual perfil de profissional traz mais receita para a empresa.
+*/
+SELECT
+    nome_projetista,
+    ticket_medio
+FROM
+    -- Subconsulta 1: Calcula o ticket médio para cada projetista.
+    -- O resultado disso funciona como uma tabela temporária para a consulta principal.
+    (SELECT
+        proj.nome AS nome_projetista,
+        AVG(p.valor_total) AS ticket_medio
+    FROM
+        Projetista proj
+    JOIN
+        Ambiente a ON proj.CPF_projetista = a.CPF_projetista
+    JOIN
+        Pedido p ON a.cod_pedido = p.cod_pedido
+    GROUP BY
+        proj.nome
+    ) AS TabelaTicketMedio
+WHERE
+    -- A cláusula WHERE filtra o resultado, mantendo apenas a linha
+    -- cujo 'ticket_medio' é igual ao valor máximo de 'ticket_medio'.
+    TabelaTicketMedio.ticket_medio = (
+        -- Subconsulta 2: Encontra o valor máximo do ticket médio.
+        -- Esta consulta é executada primeiro para descobrir qual é o maior valor.
+        SELECT
+            MAX(ticket_medio_interno)
+        FROM
+            (SELECT
+                AVG(p_interno.valor_total) AS ticket_medio_interno
+            FROM
+                Projetista proj_interno
+            JOIN
+                Ambiente a_interno ON proj_interno.CPF_projetista = a_interno.CPF_projetista
+            JOIN
+                Pedido p_interno ON a_interno.cod_pedido = p_interno.cod_pedido
+            GROUP BY
+                proj_interno.nome
+            ) AS TabelaCalculoMaximo
+    );
 
 /*
-Com certeza! Analisei os scripts SQL do seu projeto e o documento de avaliação para criar 5 novas consultas SQL que utilizam subconsultas e podem agregar valor na tomada de decisão para os gestores da "Casa Prado".
+ Ana Karolina	17400.000000
+ */
 
-Aqui estão as 5 consultas, cada uma com uma breve explicação sobre sua utilidade:
+/*
+ * 2. Bairro com Maior Incidência de Atrasos na Entrega
+Valor Gerencial: Aponta problemas operacionais (logística, montagem) em regiões específicas. Se um bairro tem muitos atrasos, pode ser necessário investigar as equipes que atendem aquela área ou as rotas de entrega, otimizando processos e melhorando a satisfação do cliente.
+ */
+-- Conta o número de pedidos entregues com atraso para cada bairro.
+-- A subconsulta no WHERE filtra apenas os pedidos cujo 'cod_endereco' pertence a um pedido entregue com atraso.
+-- Um pedido é considerado atrasado se a data de entrega for posterior à data prevista.
+SELECT
+    e.bairro,
+    COUNT(p.cod_pedido) AS total_de_atrasos
+FROM
+    Endereco e
+JOIN
+    Pedido p ON e.cod_endereco = p.cod_endereco
+WHERE
+    p.cod_pedido IN (
+        SELECT
+            cod_pedido
+        FROM
+            Pedido
+        WHERE
+            data_entrega > data_prev_entrega
+    )
+GROUP BY
+    e.bairro
+ORDER BY
+    total_de_atrasos DESC;
 
-1. Clientes que se cadastraram mas nunca realizaram um pedido
-Esta consulta é útil para a equipe de marketing ou vendas, pois identifica clientes em potencial que demonstraram interesse inicial (cadastrando-se) mas que ainda não se tornaram compradores. Com essa lista, é possível criar campanhas de reengajamento ou entrar em contato para oferecer um incentivo.
+/*
+ Centro	1
+ */
+-- adicionar mais com atraso
+
+/*
+ * 3. Média de Versões de Projeto por Projetista
+Valor Gerencial: Esta é uma métrica de eficiência. Um número alto de versões por projeto pode indicar dificuldade do projetista em captar os requisitos do cliente, resultando em retrabalho. Um número baixo pode significar alta assertividade. A gestão pode usar isso para identificar necessidades de treinamento.
 */
--- Seleciona os clientes cujo CPF não está na lista de clientes que já fizeram um pedido.
+
+-- Calcula a média de versões por projeto para cada projetista.
+-- A subconsulta complexa no FROM (chamada 'VersoesPorProjetista') primeiro conta as versões por ambiente,
+-- depois agrupa esses ambientes por projetista para obter uma contagem total de versões e projetos.
+SELECT
+    proj.nome,
+    -- A divisão do total de versões pelo total de projetos dá a média de versões por projeto.
+    (VersoesPorProjetista.total_versoes / VersoesPorProjetista.total_projetos) AS media_versoes_por_projeto
+FROM
+    Projetista proj
+JOIN
+    (SELECT
+        a.CPF_projetista,
+        COUNT(v.cod_versao) AS total_versoes,
+        COUNT(DISTINCT a.cod_pedido) AS total_projetos
+    FROM
+        Ambiente a
+    JOIN
+        Versao v ON a.cod_ambiente = v.cod_ambiente
+    GROUP BY
+        a.CPF_projetista
+    ) AS VersoesPorProjetista ON proj.CPF_projetista = VersoesPorProjetista.CPF_projetista
+ORDER BY
+    media_versoes_por_projeto DESC;
+/* saída:
+Ana Karolina	1.0000
+João Mendes	1.0000
+Ana Oliveira	1.0000
+ */
+
+ /* OBS: Adicionar ambientes com mais de uma versão e mudar versao para lista simples de strings
+
+
+/*
+4. Clientes que Possuem Parcelas em Atraso
+Valor Gerencial: Essencial para a saúde financeira. Esta consulta gera uma lista de ação imediata para a equipe de cobrança, mostrando exatamente quais clientes estão inadimplentes. É o primeiro passo para recuperar receita e mitigar riscos financeiros.
+*/
+-- Seleciona clientes distintos que possuem parcelas vencidas e não pagas.
+-- A subconsulta no WHERE cria uma lista de todos os CPFs de clientes que estão associados
+-- a pedidos que, por sua vez, têm parcelas com data de vencimento anterior à data atual (CURDATE())
+-- e cuja data de pagamento ainda é NULA.
 SELECT
     CPF_cliente,
     nome,
@@ -15,130 +132,47 @@ SELECT
 FROM
     Cliente
 WHERE
-    CPF_cliente NOT IN (SELECT DISTINCT CPF_cliente FROM Pedido);
-/* retorno:
-99988877766	Brendon Lima	brendon.lima@email.com
-*/
-
-/*
-2. Pedidos com valor total acima da média de todos os pedidos
-Esta consulta ajuda os gestores a identificar os pedidos de alto valor. Analisar esses pedidos pode revelar padrões, como tipos de projetos mais lucrativos ou clientes que tendem a gastar mais, auxiliando em estratégias de vendas e na alocação de recursos para garantir a satisfação desses clientes valiosos.
-*/
-
--- Seleciona todos os dados dos pedidos onde o valor_total é maior que a média de valor de todos os pedidos.
--- A subconsulta (SELECT AVG(valor_total) FROM Pedido) calcula o valor médio que é então usado como ponto de comparação.
-SELECT
-    cod_pedido,
-    descricao,
-    valor_total,
-    CPF_cliente
-FROM
-    Pedido
-WHERE
-    valor_total > (SELECT AVG(valor_total) FROM Pedido);
-
-/* retorno:
-6	Recepção de clínica	25000.00	55566677788
-7	Consultório médico	28000.00	55566677788
-*/
-
-/*
-3. Projetistas que trabalharam em mais de 2 projetos distintos
-Com esta consulta, a gerência pode identificar os projetistas mais ativos ou com maior volume de trabalho. Essa informação é valiosa para avaliações de desempenho, distribuição de novos projetos e para entender a carga de trabalho de cada membro da equipe.
-*/
-
--- Seleciona o nome e o CPF dos projetistas que aparecem em uma subconsulta.
--- A subconsulta agrupa os ambientes por projetista e conta o número de pedidos distintos (projetos) para cada um,
--- filtrando apenas aqueles com mais de 2 projetos.
-SELECT
-    nome,
-    CPF_projetista
-FROM
-    Projetista
-WHERE
-    CPF_projetista IN (
-        SELECT
-            CPF_projetista
-        FROM
-            Ambiente
-        GROUP BY
-            CPF_projetista
-        HAVING
-            COUNT(DISTINCT cod_pedido) > 2
+    CPF_cliente IN (
+        SELECT DISTINCT p.CPF_cliente
+        FROM Pedido p
+        JOIN Parcela par ON p.cod_pedido = par.cod_pedido
+        WHERE par.data_pagamento IS NULL AND par.data_vencimento < CURDATE()
     );
-/* retorno vazio 
-Ana Oliveira	66677788899
-*/
+/* saída:
+12345678901	Carlos Silva	carlos@email.com
+98765432100	Maria Souza	maria@email.com
+55566677788	Herbert Duarte	herbert.duarte@email.com
+ */
 
-/*
-4. Clientes que possuem pedidos com ambientes projetados por mais de um projetista
-Identificar clientes que trabalharam com múltiplos projetistas pode indicar grandes projetos (com fases ou ambientes diferentes) ou, em outro cenário, uma possível insatisfação com o projetista original. Em ambos os casos, é uma informação crucial para o gerenciamento de relacionamento com o cliente.
-*/
--- Seleciona as informações dos clientes que estão na lista retornada pela subconsulta.
--- A subconsulta junta as tabelas Pedido e Ambiente, agrupando por cliente e contando
--- quantos projetistas distintos estão associados aos seus pedidos. Retorna apenas os clientes com mais de um projetista.
+
+ /*
+  5. Quantidade de Pedidos por Estado Civil do Cliente
+Valor Gerencial: Uma consulta valiosa para o marketing e estratégia de produto. Entender qual estado civil mais compra pode direcionar o estilo da comunicação, as promoções e até o tipo de projeto mais ofertado (ex: projetos para "casados" podem ser maiores, enquanto para "solteiros" podem focar em apartamentos menores).
+  */
+
+-- Conta o número de pedidos para cada estado civil.
+-- A consulta principal agrupa por 'estado_civil'.
+-- A subconsulta no FROM cria uma visão que junta o CPF e o estado civil do cliente com cada um de seus pedidos,
+-- facilitando a contagem final.
 SELECT
-    c.nome,
-    c.CPF_cliente
+    DadosCliente.estado_civil,
+    COUNT(DadosCliente.cod_pedido) AS quantidade_de_pedidos
 FROM
-    Cliente c
-WHERE
-    c.CPF_cliente IN (
-        SELECT
-            p.CPF_cliente
-        FROM
-            Pedido p
-            JOIN Ambiente a ON p.cod_pedido = a.cod_pedido
-        GROUP BY
-            p.CPF_cliente
-        HAVING
-            COUNT(DISTINCT a.CPF_projetista) > 1
-    );
+    (SELECT
+        c.estado_civil,
+        p.cod_pedido
+    FROM
+        Cliente c
+    JOIN
+        Pedido p ON c.CPF_cliente = p.CPF_cliente
+    ) AS DadosCliente
+GROUP BY
+    DadosCliente.estado_civil
+ORDER BY
+    quantidade_de_pedidos DESC;
 
-/* retorno 
-Gabriel Viana	11122233344
-Herbert Duarte	55566677788
-*/
-
-/*
-5. Pedidos que estão sendo gerenciados pelo projetista mais antigo da empresa
-Esta consulta pode ser usada para relatórios especiais, para homenagear o trabalho do projetista mais experiente ou para auditar a qualidade e o estilo dos projetos de um profissional de longa data. Ela demonstra como usar uma subconsulta para encontrar um valor específico (neste caso, o CPF do projetista mais antigo) e, em seguida, usar esse valor para filtrar outros dados.
-*/
-
--- Seleciona informações dos pedidos cujo código está na lista retornada pela subconsulta externa.
--- A subconsulta externa busca os códigos de pedido associados ao projetista retornado pela subconsulta interna.
--- A subconsulta interna encontra o CPF do projetista com a data de admissão mais antiga.
-SELECT
-    p.cod_pedido,
-    p.descricao,
-    p.valor_total,
-    c.nome AS nome_cliente
-FROM
-    Pedido p
-JOIN
-    Cliente c ON p.CPF_cliente = c.CPF_cliente
-WHERE
-    p.cod_pedido IN (
-        SELECT
-            cod_pedido
-        FROM
-            Ambiente
-        WHERE
-            CPF_projetista = (
-                SELECT
-                    CPF_projetista
-                FROM
-                    Projetista
-                ORDER BY
-                    data_admissao ASC -- DESC pode ser útil para medir o desempenho do novato
-                LIMIT 1 -- trocar por funcao nativa de calculo de maior valor de data? max talvez?
-            )
-    );
-/* retorno:
-
-1	Projeto cozinha planejada	8500.00	Carlos Silva
-4	Home theater para sala	7500.00	Gabriel Viana
-*/
-
-
+/* saída
+Solteiro	4
+Casado	3
+ */
 

@@ -1,0 +1,10 @@
+-- Orientações 16-07-2025
+
+-- o projetista com projetos com maior ticket medio - sem limit - atenção para achar o projetista
+-- qual bairro tem maior incidencia de atrasos de entrega - sem limit
+-- média de versão de projeto pra cada projetista
+-- Clientes que possuem parcelas em atraso
+-- quantidade de pedidos por estado civil
+
+
+-- popular banco / Adicionar mais registros para rodar as consultas
