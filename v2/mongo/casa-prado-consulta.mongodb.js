@@ -1,29 +1,30 @@
+// Conexão com o banco de dados "casa_prado"
 use("casa_prado");
 
+// Definição da data atual para as consultas que precisam dela.
 const hoje = new Date();
+
+// =================================================================================
+// 5 NOVAS CONSULTAS GERENCIAIS PARA MONGODB
+// =================================================================================
 
 // --- 1. Projetista com o Maior Ticket Médio por Projeto (sem usar LIMIT) ---
 print("\n--- Consulta 1: Projetista com Maior Ticket Médio ---");
-var projetista_maior_ticket = db.pedidos.aggregate([
-  // Etapa 1: Desagrupa os ambientes para poder acessar o projetista de cada projeto.
+db.pedidos.aggregate([
   { $unwind: "$ambientes" },
-  
-  // Etapa 2: Agrupa por projetista para calcular o ticket médio de cada um.
-  {
+    {
     $group: {
       _id: "$ambientes.projetista_id",
-      ticket_medio: { $avg: "$valor_total" }
+      ticket_medio: 
+      { $avg: "$valor_total" }
     }
   },
-  
-  // Etapa 3: Usa $facet para processar os dados de duas formas: 
-  // 1) manter a lista de todos os projetistas com seus tickets médios.
-  // 2) encontrar o valor máximo do ticket médio entre todos eles.
-  {
+   {
     $facet: {
       "projetistasComTicket": [{ $match: {} }],
       "maxTicket": [
-        { $group: { _id: null, max_valor: { $max: "$ticket_medio" } } },
+        { $group: { _id: null, max_valor: 
+          { $max: "$ticket_medio" } } },
         { $unwind: "$max_valor" }
       ]
     }
@@ -63,12 +64,11 @@ var projetista_maior_ticket = db.pedidos.aggregate([
     }
   }
 ]);
-print(projetista_maior_ticket);
 
 
 // --- 2. Bairro com Maior Incidência de Atrasos na Entrega ---
 print("\n--- Consulta 2: Bairros com Maior Incidência de Atrasos ---"); // Adicionar registros com data de entrega posterior à prevista
-var bairros_com_atraso = db.pedidos.aggregate([
+db.pedidos.aggregate([
   // Etapa 1: Filtra apenas os pedidos que foram entregues com atraso.
   {
     $match: {
@@ -143,12 +143,11 @@ var media_versoes_projetista = db.pedidos.aggregate([
   // Etapa 6: Ordena pela maior média de versões.
   { $sort: { media_versoes_por_projeto: -1 } }
 ]);
-print(media_versoes_projetista);
 
 
 // --- 4. Clientes que Possuem Parcelas em Atraso ---
 print("\n--- Consulta 4: Clientes com Parcelas em Atraso ---");
-var clientes_inadimplentes = db.pedidos.aggregate([
+db.pedidos.aggregate([
   // Etapa 1: Desagrupa o array de parcelas.
   { $unwind: "$parcelas" },
   
@@ -187,12 +186,11 @@ var clientes_inadimplentes = db.pedidos.aggregate([
     }
   }
 ]);
-print(clientes_inadimplentes);
 
 
 // --- 5. Quantidade de Pedidos por Estado Civil do Cliente ---
 print("\n--- Consulta 5: Quantidade de Pedidos por Estado Civil ---");
-var pedidos_por_estado_civil = db.pedidos.aggregate([
+db.pedidos.aggregate([
   // Etapa 1: Junta a coleção 'pedidos' com a 'clientes' para acessar o estado civil.
   {
     $lookup: {
@@ -226,7 +224,6 @@ var pedidos_por_estado_civil = db.pedidos.aggregate([
   // Etapa 5: Ordena pela maior quantidade de pedidos.
   { $sort: { quantidade_de_pedidos: -1 } }
 ]);
-print(pedidos_por_estado_civil);
 
 // =================================================================================
 // --- Reultados:

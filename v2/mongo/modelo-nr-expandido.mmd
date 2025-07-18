@@ -8,11 +8,7 @@ classDiagram
         +date data_nascimento
         +string estado_civil
         +string e_mail
-    }
-
-    class telefone_obj {
-        <<Embedded Object>>
-        +string numero
+        +string[] telefones
     }
 
     class endereco_obj {
@@ -60,19 +56,13 @@ classDiagram
         +string nome_ambiente
         +double area
         +string projetista_id (FK)
+        +string[] versoes
     }
 
-    class versao_obj {
-        <<Embedded Object>>
-        +string arquivo_planta
-    }
-
-    clientes "1" *-- "0..n" telefone_obj : telefones [array]
     clientes "1" *-- "0..n" endereco_obj : enderecos [array]
 
     pedidos "1" *-- "0..n" parcela_obj : parcelas [array]
     pedidos "1" *-- "0..n" ambiente_obj : ambientes [array]
     pedidos ..> clientes : "refere-se a"
 
-    ambiente_obj "1" *-- "0..n" versao_obj : versoes [array]
     ambiente_obj ..> projetistas : "refere-se a"
