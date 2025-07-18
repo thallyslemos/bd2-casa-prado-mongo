@@ -1,0 +1,47 @@
+{
+  "_id": 6,
+  "descricao": "Recepção de clínica",
+  "data_prev_entrega": {
+    "$date": "2024-10-20T00:00:00Z"
+  },
+  "data_entrega": {
+    "$date": "2024-11-01T00:00:00Z"
+  },
+  "status": "Entregue",
+  "valor_total": 25000,
+  "forma_pagamento": "Boleto",
+  "tipo_imovel": "Comercial",
+  "cliente_id": "55566677788",
+  "endereco_entrega": {
+    "logradouro": "Av. Olívia Flores",
+    "numero": "440",
+    "bairro": "Bela Vista"
+  },
+  "parcelas": [
+    {
+      "data_vencimento": {
+        "$date": "2024-10-30T00:00:00Z"
+      },
+      "data_pagamento": {
+        "$date": "2024-10-28T00:00:00Z"
+      },
+      "valor_pago": 12500
+    },
+    {
+      "data_vencimento": {
+        "$date": "2024-11-30T00:00:00Z"
+      },
+      "data_pagamento": null,
+      "valor_pago": 12500
+    }
+  ],
+  "ambientes": [
+    {
+      "nome_ambiente": "Recepção",
+      "projetista_id": "66677788899",
+      "versoes": [
+        "planta_recepcao_v1.pdf"
+      ]
+    }
+  ]
+}
