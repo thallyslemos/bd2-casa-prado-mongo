@@ -50,7 +50,6 @@ classDiagram
 
     class parcela_obj {
         <<Embedded Object>>
-        +int cod_pagamento
         +date data_vencimento
         +date data_pagamento
         +double valor_pago
@@ -58,7 +57,6 @@ classDiagram
 
     class ambiente_obj {
         <<Embedded Object>>
-        +int cod_ambiente
         +string nome_ambiente
         +double area
         +string projetista_id (FK)
@@ -66,7 +64,6 @@ classDiagram
 
     class versao_obj {
         <<Embedded Object>>
-        +int cod_versao
         +string arquivo_planta
     }
 
